@@ -62,26 +62,29 @@ def create_aggrid_table(
         resizable=True
     )
     
-    # Configure specific columns
-    if 'Date' in df.columns:
-        gb.configure_column('Date', type=["dateColumnFilter", "customDateTimeFormat"], 
-                          custom_format_string='yyyy-MM-dd', pivot=True)
-    
-    if 'Total Amount' in df.columns:
-        gb.configure_column('Total Amount', type=["numericColumn", "numberColumnFilter", "customNumericFormat"], 
-                          precision=2, aggFunc="sum")
-    
-    if 'Unit Price' in df.columns:
-        gb.configure_column('Unit Price', type=["numericColumn", "numberColumnFilter", "customNumericFormat"], 
-                          precision=2, aggFunc="avg")
-    
-    if 'Quantity' in df.columns:
-        gb.configure_column('Quantity', type=["numericColumn", "numberColumnFilter"], 
-                          aggFunc="sum")
-    
-    if 'Profit Margin' in df.columns:
-        gb.configure_column('Profit Margin', type=["numericColumn", "numberColumnFilter"], 
-                          precision=1, aggFunc="avg")
+    # Configure specific columns with error handling
+    try:
+        if 'Date' in df.columns:
+            gb.configure_column('Date', type=["dateColumnFilter", "customDateTimeFormat"], 
+                              custom_format_string='yyyy-MM-dd', pivot=True)
+        
+        if 'Total Amount' in df.columns:
+            gb.configure_column('Total Amount', type=["numericColumn", "numberColumnFilter", "customNumericFormat"], 
+                              precision=2, aggFunc="sum")
+        
+        if 'Unit Price' in df.columns:
+            gb.configure_column('Unit Price', type=["numericColumn", "numberColumnFilter", "customNumericFormat"], 
+                              precision=2, aggFunc="avg")
+        
+        if 'Quantity' in df.columns:
+            gb.configure_column('Quantity', type=["numericColumn", "numberColumnFilter"], 
+                              aggFunc="sum")
+        
+        if 'Profit Margin' in df.columns:
+            gb.configure_column('Profit Margin', type=["numericColumn", "numberColumnFilter"], 
+                              precision=1, aggFunc="avg")
+    except Exception as e:
+        st.warning(f"Column configuration warning: {str(e)}")
     
     # Configure grouping
     if enable_grouping and groupable_columns:
@@ -92,15 +95,7 @@ def create_aggrid_table(
     # Configure sidebar
     gb.configure_side_bar()
     
-    # Configure grid options
-    gridOptions = gb.build()
-    
-    # Add aggregation row
-    if show_aggregations:
-        gridOptions["groupIncludeFooter"] = True
-        gridOptions["groupIncludeTotalFooter"] = True
-        
-    # Custom JS for cell styling
+    # Custom JS for cell styling (configure BEFORE building)
     cell_style_jscode = JsCode("""
     function(params) {
         if (params.column.colId === 'Profit Margin') {
@@ -119,30 +114,53 @@ def create_aggrid_table(
     }
     """)
     
-    # Apply cell styling to relevant columns
-    if 'Profit Margin' in df.columns or 'Total Amount' in df.columns:
-        for col in df.columns:
-            if col in ['Profit Margin', 'Total Amount']:
-                gb.configure_column(col, cellStyle=cell_style_jscode)
+    # Apply cell styling to relevant columns BEFORE building
+    try:
+        if 'Profit Margin' in df.columns:
+            gb.configure_column('Profit Margin', cellStyle=cell_style_jscode)
+        if 'Total Amount' in df.columns:
+            gb.configure_column('Total Amount', cellStyle=cell_style_jscode)
+    except Exception as e:
+        st.warning(f"Cell styling warning: {str(e)}")
     
+    # Build grid options
     gridOptions = gb.build()
     
-    # Create and return the AgGrid
-    response = AgGrid(
-        df,
-        gridOptions=gridOptions,
-        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-        update_mode=GridUpdateMode.MODEL_CHANGED,
-        fit_columns_on_grid_load=False,
-        theme=theme,
-        enable_enterprise_modules=True,
-        height=height,
-        width='100%',
-        reload_data=False,
-        custom_css=custom_css
-    )
+    # Add aggregation row
+    if show_aggregations:
+        gridOptions["groupIncludeFooter"] = True
+        gridOptions["groupIncludeTotalFooter"] = True
     
-    return response
+    # Create and return the AgGrid
+    try:
+        response = AgGrid(
+            df,
+            gridOptions=gridOptions,
+            data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+            update_mode=GridUpdateMode.MODEL_CHANGED,
+            fit_columns_on_grid_load=False,
+            theme=theme,
+            enable_enterprise_modules=True,
+            height=height,
+            width='100%',
+            reload_data=False,
+            custom_css=custom_css
+        )
+        
+        return response
+    
+    except Exception as e:
+        st.error(f"Error creating AG Grid table: {str(e)}")
+        st.warning("Falling back to standard Streamlit dataframe...")
+        st.dataframe(df, use_container_width=True, height=height)
+        
+        # Return a mock response object for compatibility
+        class MockResponse:
+            def __init__(self):
+                self.selected_rows = []
+                self.data = df
+        
+        return MockResponse()
 
 def create_pivot_table(df, rows=None, cols=None, values=None, aggfunc='sum'):
     """
