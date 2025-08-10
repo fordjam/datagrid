@@ -11,8 +11,19 @@ A demonstration of Streamlit application featuring interactive data tables with 
 - Custom cell renderers and editors
 - Real-time data updates
 
-## Installation
+## Quick Start
 
+### Option 1: Using the launch script (recommended)
+```bash
+git clone <repository-url>
+cd aggrid
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+./run.sh
+```
+
+### Option 2: Manual setup
 1. Clone the repository:
 ```bash
 git clone <repository-url>
@@ -30,14 +41,23 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## Usage
-
-Run the Streamlit application:
+4. Run the application:
 ```bash
 streamlit run app.py
 ```
 
-The application will be available at `http://localhost:8501`
+## Usage
+
+The application will automatically open in your browser at `http://localhost:8501`
+
+### Demo Modes
+
+The application includes four main demonstration modes:
+
+1. **📊 Basic Table** - Interactive sorting, filtering, and selection
+2. **🔢 Aggregations** - Row grouping and automatic calculations  
+3. **📈 Pivot Table** - Dynamic cross-tabulation analysis
+4. **🎯 Advanced Features** - Custom styling and export functionality
 
 ## Project Structure
 
