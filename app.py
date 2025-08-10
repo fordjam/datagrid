@@ -429,7 +429,7 @@ def show_data_visualizations(df):
             color='Total Amount',
             color_continuous_scale='Blues'
         )
-        fig1.update_xaxis(tickangle=45)
+        fig1.update_layout(xaxis_tickangle=45)
         st.plotly_chart(fig1, use_container_width=True)
     
     with col2:

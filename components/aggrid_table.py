@@ -95,35 +95,7 @@ def create_aggrid_table(
     # Configure sidebar
     gb.configure_side_bar()
     
-    # Custom JS for cell styling (configure BEFORE building)
-    cell_style_jscode = JsCode("""
-    function(params) {
-        if (params.column.colId === 'Profit Margin') {
-            if (params.value > 40) {
-                return {'background-color': '#d4edda', 'color': '#155724'};
-            } else if (params.value < 20) {
-                return {'background-color': '#f8d7da', 'color': '#721c24'};
-            }
-        }
-        if (params.column.colId === 'Total Amount') {
-            if (params.value > 1000) {
-                return {'font-weight': 'bold', 'color': '#007bff'};
-            }
-        }
-        return {};
-    }
-    """)
-    
-    # Apply cell styling to relevant columns BEFORE building
-    try:
-        if 'Profit Margin' in df.columns:
-            gb.configure_column('Profit Margin', cellStyle=cell_style_jscode)
-        if 'Total Amount' in df.columns:
-            gb.configure_column('Total Amount', cellStyle=cell_style_jscode)
-    except Exception as e:
-        st.warning(f"Cell styling warning: {str(e)}")
-    
-    # Build grid options
+    # Build grid options (removed problematic cell styling for now)
     gridOptions = gb.build()
     
     # Add aggregation row
@@ -156,11 +128,19 @@ def create_aggrid_table(
         
         # Return a mock response object for compatibility
         class MockResponse:
-            def __init__(self):
+            def __init__(self, df):
                 self.selected_rows = []
                 self.data = df
+            
+            def __getitem__(self, key):
+                if key == "selected_rows":
+                    return []
+                elif key == "data":
+                    return self.data
+                else:
+                    return []
         
-        return MockResponse()
+        return MockResponse(df)
 
 def create_pivot_table(df, rows=None, cols=None, values=None, aggfunc='sum'):
     """
