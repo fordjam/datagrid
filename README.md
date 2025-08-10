@@ -15,8 +15,8 @@ A demonstration of Streamlit application featuring interactive data tables with 
 
 ### Option 1: Using the launch script (recommended)
 ```bash
-git clone <repository-url>
-cd aggrid
+git clone https://github.com/fordjam/datagrid.git
+cd datagrid
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -26,8 +26,8 @@ pip install -r requirements.txt
 ### Option 2: Manual setup
 1. Clone the repository:
 ```bash
-git clone <repository-url>
-cd aggrid
+git clone https://github.com/fordjam/datagrid.git
+cd datagrid
 ```
 
 2. Create and activate a virtual environment:
@@ -62,7 +62,7 @@ The application includes four main demonstration modes:
 ## Project Structure
 
 ```
-aggrid/
+datagrid/
 ├── app.py                 # Main Streamlit application
 ├── data/
 │   └── sample_data.py    # Sample data generation
