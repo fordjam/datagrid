@@ -16,7 +16,9 @@ def create_aggrid_table(
     height=400,
     theme="alpine",
     show_aggregations=True,
-    custom_css=None
+    custom_css=None,
+    enable_sidebar=True,
+    enable_column_filter=True
 ):
     """
     Create a customizable AG Grid table
@@ -33,6 +35,8 @@ def create_aggrid_table(
         theme: AG Grid theme ('alpine', 'balham', 'material')
         show_aggregations: Show aggregation row
         custom_css: Custom CSS styling
+        enable_sidebar: Show sidebar with column tools
+        enable_column_filter: Enable column filter panel
     
     Returns:
         AgGrid response object
@@ -59,30 +63,39 @@ def create_aggrid_table(
         editable=False,
         sortable=enable_sorting,
         filter=enable_filtering,
-        resizable=True
+        resizable=True,
+        floatingFilter=enable_column_filter  # Add floating filters
     )
     
     # Configure specific columns with error handling
     try:
         if 'Date' in df.columns:
             gb.configure_column('Date', type=["dateColumnFilter", "customDateTimeFormat"], 
-                              custom_format_string='yyyy-MM-dd', pivot=True)
+                              custom_format_string='yyyy-MM-dd', pivot=True, 
+                              floatingFilter=enable_column_filter)
         
         if 'Total Amount' in df.columns:
             gb.configure_column('Total Amount', type=["numericColumn", "numberColumnFilter", "customNumericFormat"], 
-                              precision=2, aggFunc="sum")
+                              precision=2, aggFunc="sum", floatingFilter=enable_column_filter)
         
         if 'Unit Price' in df.columns:
             gb.configure_column('Unit Price', type=["numericColumn", "numberColumnFilter", "customNumericFormat"], 
-                              precision=2, aggFunc="avg")
+                              precision=2, aggFunc="avg", floatingFilter=enable_column_filter)
         
         if 'Quantity' in df.columns:
             gb.configure_column('Quantity', type=["numericColumn", "numberColumnFilter"], 
-                              aggFunc="sum")
+                              aggFunc="sum", floatingFilter=enable_column_filter)
         
         if 'Profit Margin' in df.columns:
             gb.configure_column('Profit Margin', type=["numericColumn", "numberColumnFilter"], 
-                              precision=1, aggFunc="avg")
+                              precision=1, aggFunc="avg", floatingFilter=enable_column_filter)
+                              
+        # Configure text columns for better filtering
+        for col in df.columns:
+            if df[col].dtype == 'object' and col not in ['Date']:
+                gb.configure_column(col, filter="agTextColumnFilter", 
+                                  floatingFilter=enable_column_filter)
+                                  
     except Exception as e:
         st.warning(f"Column configuration warning: {str(e)}")
     
@@ -92,16 +105,25 @@ def create_aggrid_table(
             if col in df.columns:
                 gb.configure_column(col, rowGroup=True, hide=True)
     
-    # Configure sidebar
-    gb.configure_side_bar()
+    # Configure sidebar with column tools
+    if enable_sidebar:
+        gb.configure_side_bar(
+            filters_panel=True,
+            columns_panel=True,
+            defaultToolPanel="columns"
+        )
     
-    # Build grid options (removed problematic cell styling for now)
+    # Build grid options
     gridOptions = gb.build()
     
     # Add aggregation row
     if show_aggregations:
         gridOptions["groupIncludeFooter"] = True
         gridOptions["groupIncludeTotalFooter"] = True
+        
+    # Enable column filter panel at top
+    if enable_column_filter:
+        gridOptions["floatingFilter"] = True
     
     # Create and return the AgGrid
     try:
@@ -144,7 +166,7 @@ def create_aggrid_table(
 
 def create_pivot_table(df, rows=None, cols=None, values=None, aggfunc='sum'):
     """
-    Create a pivot table using AG Grid
+    Create a working pivot table using AG Grid
     
     Args:
         df: pandas DataFrame
@@ -157,53 +179,158 @@ def create_pivot_table(df, rows=None, cols=None, values=None, aggfunc='sum'):
         AgGrid response object
     """
     
-    gb = GridOptionsBuilder.from_dataframe(df)
+    if not rows and not cols and not values:
+        st.warning("Please select at least one row, column, or value for the pivot table.")
+        return create_aggrid_table(df, height=300)
     
-    # Configure pivot mode
-    gb.configure_grid_options(pivotMode=True)
-    
-    # Configure row groups
-    if rows:
-        for row in rows:
-            gb.configure_column(row, rowGroup=True, hide=True)
-    
-    # Configure column groups (pivot columns)
-    if cols:
-        for col in cols:
-            gb.configure_column(col, pivot=True, hide=True)
-    
-    # Configure value columns
-    if values:
-        for value in values:
-            if aggfunc == 'sum':
-                gb.configure_column(value, aggFunc='sum')
-            elif aggfunc == 'avg':
-                gb.configure_column(value, aggFunc='avg')
-            elif aggfunc == 'count':
-                gb.configure_column(value, aggFunc='count')
-            elif aggfunc == 'min':
-                gb.configure_column(value, aggFunc='min')
-            elif aggfunc == 'max':
-                gb.configure_column(value, aggFunc='max')
-    
-    # Configure sidebar for easier column management
-    gb.configure_side_bar()
-    
-    gridOptions = gb.build()
-    
-    response = AgGrid(
-        df,
-        gridOptions=gridOptions,
-        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-        update_mode=GridUpdateMode.MODEL_CHANGED,
-        fit_columns_on_grid_load=True,
-        theme="alpine",
-        enable_enterprise_modules=True,
-        height=400,
-        width='100%'
-    )
-    
-    return response
+    try:
+        # Build grid options from dataframe
+        gb = GridOptionsBuilder.from_dataframe(df)
+        
+        # Enable pivot mode
+        gb.configure_grid_options(
+            pivotMode=True,
+            suppressAggFuncInHeader=False,
+            suppressColumnVirtualisation=False
+        )
+        
+        # Configure all columns as groupable and pivotable by default
+        gb.configure_default_column(
+            enableRowGroup=True,
+            enablePivot=True,
+            enableValue=True,
+            sortable=True,
+            resizable=True,
+            filter=True,
+            floatingFilter=True
+        )
+        
+        # Configure row groups
+        if rows:
+            for row_col in rows:
+                if row_col in df.columns:
+                    gb.configure_column(
+                        row_col, 
+                        rowGroup=True, 
+                        hide=False,  # Don't hide so users can see the grouping
+                        enableRowGroup=True
+                    )
+        
+        # Configure pivot columns
+        if cols:
+            for col_col in cols:
+                if col_col in df.columns:
+                    gb.configure_column(
+                        col_col, 
+                        pivot=True, 
+                        enablePivot=True
+                    )
+        
+        # Configure value columns with appropriate aggregation
+        if values:
+            for value_col in values:
+                if value_col in df.columns:
+                    # Set the aggregation function based on data type and user selection
+                    if aggfunc == 'sum':
+                        agg_func = 'sum'
+                    elif aggfunc == 'avg':
+                        agg_func = 'avg'
+                    elif aggfunc == 'count':
+                        agg_func = 'count'
+                    elif aggfunc == 'min':
+                        agg_func = 'min'
+                    elif aggfunc == 'max':
+                        agg_func = 'max'
+                    else:
+                        agg_func = 'sum'
+                    
+                    gb.configure_column(
+                        value_col, 
+                        aggFunc=agg_func,
+                        enableValue=True,
+                        valueFormatter="value = Math.round(value * 100) / 100" if value_col in ['Unit Price', 'Total Amount', 'Profit Margin'] else None
+                    )
+        
+        # Configure sidebar for drag and drop functionality
+        gb.configure_side_bar(
+            filters_panel=True,
+            columns_panel=True,
+            defaultToolPanel="columns"
+        )
+        
+        # Build the grid options
+        gridOptions = gb.build()
+        
+        # Enable additional pivot features
+        gridOptions.update({
+            "pivotMode": True,
+            "rowGroupPanelShow": "always",
+            "pivotPanelShow": "always",
+            "valuePanelShow": "always",
+            "sideBar": {
+                "toolPanels": [
+                    {
+                        "id": "columns",
+                        "labelDefault": "Columns",
+                        "labelKey": "columns",
+                        "iconKey": "columns",
+                        "toolPanel": "agColumnsToolPanel",
+                        "toolPanelParams": {
+                            "suppressRowGroups": False,
+                            "suppressValues": False,
+                            "suppressPivots": False,
+                            "suppressPivotMode": False,
+                            "suppressColumnFilter": False,
+                            "suppressColumnSelectAll": False,
+                            "suppressColumnExpandAll": False
+                        }
+                    },
+                    {
+                        "id": "filters",
+                        "labelDefault": "Filters",
+                        "labelKey": "filters",
+                        "iconKey": "filter",
+                        "toolPanel": "agFiltersToolPanel"
+                    }
+                ],
+                "defaultToolPanel": "columns"
+            }
+        })
+        
+        # Create the AG Grid
+        response = AgGrid(
+            df,
+            gridOptions=gridOptions,
+            data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+            update_mode=GridUpdateMode.MODEL_CHANGED,
+            fit_columns_on_grid_load=True,
+            theme="alpine",
+            enable_enterprise_modules=True,
+            height=500,
+            width='100%',
+            allow_unsafe_jscode=True
+        )
+        
+        return response
+        
+    except Exception as e:
+        st.error(f"Error creating pivot table: {str(e)}")
+        st.warning("Falling back to pandas pivot table...")
+        
+        # Fallback to pandas pivot
+        try:
+            if rows and values:
+                pivot_df = df.pivot_table(
+                    index=rows,
+                    columns=cols[0] if cols else None,
+                    values=values[0] if values else df.select_dtypes(include=[float, int]).columns[0],
+                    aggfunc=aggfunc,
+                    fill_value=0
+                )
+                st.dataframe(pivot_df, use_container_width=True)
+        except Exception as e2:
+            st.error(f"Pandas pivot also failed: {str(e2)}")
+            return create_aggrid_table(df, height=400)
 
 def create_summary_cards(df):
     """Create summary cards for key metrics"""
