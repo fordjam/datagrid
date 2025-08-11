@@ -52,12 +52,13 @@ The application will automatically open in your browser at `http://localhost:850
 
 ### Demo Modes
 
-The application includes four main demonstration modes:
+The application includes five main demonstration modes:
 
 1. **📊 Basic Table** - Interactive sorting, filtering, and selection
 2. **🔢 Aggregations** - Row grouping and automatic calculations  
 3. **📈 Pivot Table** - Dynamic cross-tabulation analysis
 4. **🎯 Advanced Features** - Custom styling and export functionality
+5. **💰 Finance Demo** - Real-time market data with sparklines and custom formatters
 
 ## Project Structure
 
@@ -102,8 +103,19 @@ datagrid/
 - Real-time data updates
 - Theme customization
 
+### Finance Demo Features
+- Live market data simulation
+- Custom price and change formatters with color coding
+- Sparkline charts showing price history
+- Volume display with K/M abbreviations  
+- Market cap formatting in billions
+- Sector-based filtering and analysis
+- Top performers tracking
+- Real-time refresh capabilities
+
 ## Example Data
 
+### Sales Data
 The application uses sample sales data with the following columns:
 - `Date`: Transaction date
 - `Product`: Product name
@@ -114,6 +126,22 @@ The application uses sample sales data with the following columns:
 - `Unit Price`: Price per item
 - `Total Amount`: Total transaction value
 - `Profit Margin`: Profit percentage
+
+### Finance Data (New!)
+The Finance Demo uses realistic market data with:
+- `Symbol`: Stock ticker symbol
+- `Company`: Full company name  
+- `Sector`: Industry sector
+- `Price`: Current stock price
+- `Change`: Price change in dollars
+- `Change%`: Price change percentage
+- `Volume`: Trading volume
+- `Market Cap (B)`: Market capitalization in billions
+- `52W Low/High`: 52-week price range
+- `P/E Ratio`: Price-to-earnings ratio
+- `Dividend Yield%`: Annual dividend yield
+- `Sparkline`: 30-day price history chart
+- `Last Updated`: Real-time timestamp
 
 ## Contributing
 
