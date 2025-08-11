@@ -15,8 +15,8 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Import our custom modules
-from data.sample_data import generate_sample_data, get_aggregation_demo_data
-from components.aggrid_table import create_aggrid_table, create_pivot_table, create_summary_cards
+from data.sample_data import generate_sample_data, get_aggregation_demo_data, generate_finance_data
+from components.aggrid_table import create_aggrid_table, create_pivot_table, create_summary_cards, create_finance_grid
 
 # Page configuration
 st.set_page_config(
@@ -102,9 +102,10 @@ def main():
         "Choose Demo",
         options=[
             "📊 Basic Table",
-            "🔢 Aggregations",
+            "🔢 Aggregations", 
             "📈 Pivot Table",
-            "🎯 Advanced Features"
+            "🎯 Advanced Features",
+            "💰 Finance Demo"
         ]
     )
     
@@ -143,8 +144,12 @@ def main():
     elif demo_mode == "🎯 Advanced Features":
         show_advanced_features_demo(df, table_theme, table_height)
     
-    # Show data visualizations
-    show_data_visualizations(df)
+    elif demo_mode == "💰 Finance Demo":
+        show_finance_demo(table_theme, table_height)
+    
+    # Show data visualizations (skip for finance demo as it has its own)
+    if demo_mode != "💰 Finance Demo":
+        show_data_visualizations(df)
 
 def show_basic_table_demo(df, theme, height, enable_selection):
     """Display basic table functionality"""
@@ -538,6 +543,151 @@ def show_advanced_features_demo(df, theme, height):
             
             # Show selected data
             st.dataframe(selected_df, use_container_width=True, height=200)
+
+def show_finance_demo(theme, height):
+    """Display finance demo with real-time market data simulation"""
+    
+    st.markdown('<h2 class="section-header">💰 Finance Market Demo</h2>', 
+               unsafe_allow_html=True)
+    
+    st.markdown("""
+    **Features demonstrated:**
+    - ✅ Real-time financial data display
+    - ✅ Custom price and change formatters
+    - ✅ Color-coded price movements (green/red)
+    - ✅ Volume abbreviations (M/K format)
+    - ✅ Sparkline charts for price history
+    - ✅ Market cap formatting
+    - ✅ Dividend yield indicators
+    - ✅ Pinned symbol and company columns
+    """)
+    
+    # Import the finance data generator
+    from data.sample_data import generate_finance_data
+    from components.aggrid_table import create_finance_grid
+    
+    # Control panel
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        num_stocks = st.selectbox(
+            "Number of Stocks",
+            options=[25, 50, 100, 150],
+            index=1
+        )
+    
+    with col2:
+        auto_refresh = st.checkbox("Auto Refresh", value=False)
+        if auto_refresh:
+            st.rerun()
+    
+    with col3:
+        filter_sector = st.selectbox(
+            "Filter by Sector",
+            options=["All", "Technology", "Financial Services", "Healthcare", 
+                    "Consumer Discretionary", "Consumer Staples", "Communication Services"],
+            index=0
+        )
+    
+    with col4:
+        show_only_gainers = st.checkbox("Show Only Gainers", value=False)
+    
+    # Generate finance data
+    with st.spinner("Loading market data..."):
+        finance_df = generate_finance_data(num_stocks)
+    
+    # Apply filters
+    filtered_df = finance_df.copy()
+    if filter_sector != "All":
+        filtered_df = filtered_df[filtered_df['Sector'] == filter_sector]
+    if show_only_gainers:
+        filtered_df = filtered_df[filtered_df['Change%'] > 0]
+    
+    # Market summary metrics
+    st.subheader("📊 Market Overview")
+    col1, col2, col3, col4, col5 = st.columns(5)
+    
+    with col1:
+        total_stocks = len(filtered_df)
+        st.metric(
+            label="Stocks Displayed",
+            value=f"{total_stocks:,}"
+        )
+    
+    with col2:
+        gainers = len(filtered_df[filtered_df['Change%'] > 0])
+        st.metric(
+            label="Gainers",
+            value=gainers,
+            delta=f"{gainers/total_stocks*100:.1f}%" if total_stocks > 0 else "0%"
+        )
+    
+    with col3:
+        losers = len(filtered_df[filtered_df['Change%'] < 0])
+        st.metric(
+            label="Losers", 
+            value=losers,
+            delta=f"-{losers/total_stocks*100:.1f}%" if total_stocks > 0 else "0%"
+        )
+    
+    with col4:
+        avg_change = filtered_df['Change%'].mean()
+        st.metric(
+            label="Avg Change%",
+            value=f"{avg_change:.2f}%",
+            delta=f"{'↑' if avg_change > 0 else '↓'}"
+        )
+    
+    with col5:
+        total_volume = filtered_df['Volume'].sum()
+        volume_str = f"{total_volume/1000000:.1f}M" if total_volume >= 1000000 else f"{total_volume/1000:.1f}K"
+        st.metric(
+            label="Total Volume",
+            value=volume_str
+        )
+    
+    # Display info about filtered data
+    if len(filtered_df) != len(finance_df):
+        st.info(f"📈 Showing {len(filtered_df):,} stocks (filtered from {len(finance_df):,})")
+    
+    # Create finance grid
+    st.subheader("💹 Live Market Data")
+    response = create_finance_grid(filtered_df, theme=theme, height=height)
+    
+    # Sector analysis
+    if len(filtered_df) > 0:
+        st.subheader("🏭 Sector Performance")
+        
+        sector_performance = filtered_df.groupby('Sector').agg({
+            'Change%': 'mean',
+            'Volume': 'sum',
+            'Market Cap (B)': 'sum',
+            'Symbol': 'count'
+        }).round(2)
+        sector_performance.columns = ['Avg Change%', 'Total Volume', 'Total Market Cap (B)', 'Stock Count']
+        sector_performance = sector_performance.sort_values('Avg Change%', ascending=False)
+        
+        # Display sector performance table
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            st.dataframe(
+                sector_performance,
+                use_container_width=True,
+                height=200
+            )
+        
+        with col2:
+            # Top performers
+            top_performers = filtered_df.nlargest(5, 'Change%')[['Symbol', 'Company', 'Change%', 'Price']]
+            st.markdown("**🚀 Top Performers**")
+            for _, row in top_performers.iterrows():
+                st.success(f"**{row['Symbol']}** ({row['Company'][:20]}{'...' if len(row['Company']) > 20 else ''}) +{row['Change%']:.2f}%")
+    
+    # Live data disclaimer
+    st.markdown("---")
+    st.caption("📊 **Note:** This is simulated market data for demonstration purposes. "
+              "Real trading applications would connect to live market data feeds.")
 
 def show_data_visualizations(df):
     """Display data visualizations"""

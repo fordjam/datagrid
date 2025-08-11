@@ -368,3 +368,196 @@ def create_summary_cards(df):
             value=f"{avg_profit:.1f}%",
             delta=None
         )
+
+def create_finance_grid(df, theme="alpine", height=600):
+    """
+    Create a specialized financial data grid with custom formatting and features
+    
+    Args:
+        df: pandas DataFrame with financial data
+        theme: AG Grid theme
+        height: Table height in pixels
+    
+    Returns:
+        AgGrid response object
+    """
+    
+    # Build grid options
+    gb = GridOptionsBuilder.from_dataframe(df)
+    
+    # Configure default column properties
+    gb.configure_default_column(
+        sortable=True,
+        filterable=True,
+        resizable=True
+    )
+    
+    # Custom cell renderers for financial data
+    price_renderer = JsCode("""
+    class PriceCellRenderer {
+        init(params) {
+            this.eGui = document.createElement('div');
+            this.eGui.innerHTML = `
+                <span style="font-weight: bold; color: #2e7d32;">
+                    $${params.value.toFixed(2)}
+                </span>
+            `;
+        }
+        getGui() {
+            return this.eGui;
+        }
+    }
+    """)
+    
+    change_renderer = JsCode("""
+    class ChangeCellRenderer {
+        init(params) {
+            this.eGui = document.createElement('div');
+            const value = params.value;
+            const color = value >= 0 ? '#2e7d32' : '#d32f2f';
+            const arrow = value >= 0 ? '▲' : '▼';
+            this.eGui.innerHTML = `
+                <span style="color: ${color}; font-weight: bold;">
+                    ${arrow} $${Math.abs(value).toFixed(2)}
+                </span>
+            `;
+        }
+        getGui() {
+            return this.eGui;
+        }
+    }
+    """)
+    
+    change_pct_renderer = JsCode("""
+    class ChangePercentCellRenderer {
+        init(params) {
+            this.eGui = document.createElement('div');
+            const value = params.value;
+            const color = value >= 0 ? '#2e7d32' : '#d32f2f';
+            const arrow = value >= 0 ? '▲' : '▼';
+            this.eGui.innerHTML = `
+                <span style="color: ${color}; font-weight: bold;">
+                    ${arrow} ${Math.abs(value).toFixed(2)}%
+                </span>
+            `;
+        }
+        getGui() {
+            return this.eGui;
+        }
+    }
+    """)
+    
+    volume_renderer = JsCode("""
+    class VolumeCellRenderer {
+        init(params) {
+            this.eGui = document.createElement('div');
+            const value = params.value;
+            let displayValue;
+            if (value >= 1000000) {
+                displayValue = (value / 1000000).toFixed(1) + 'M';
+            } else if (value >= 1000) {
+                displayValue = (value / 1000).toFixed(1) + 'K';
+            } else {
+                displayValue = value.toString();
+            }
+            this.eGui.innerHTML = `
+                <span style="font-family: monospace;">
+                    ${displayValue}
+                </span>
+            `;
+        }
+        getGui() {
+            return this.eGui;
+        }
+    }
+    """)
+    
+    sparkline_renderer = JsCode("""
+    class SparklineCellRenderer {
+        init(params) {
+            this.eGui = document.createElement('div');
+            this.eGui.style.height = '100%';
+            this.eGui.style.display = 'flex';
+            this.eGui.style.alignItems = 'center';
+            
+            const data = params.value;
+            if (data && Array.isArray(data)) {
+                const canvas = document.createElement('canvas');
+                canvas.width = 100;
+                canvas.height = 30;
+                const ctx = canvas.getContext('2d');
+                
+                const min = Math.min(...data);
+                const max = Math.max(...data);
+                const range = max - min;
+                
+                ctx.strokeStyle = data[data.length - 1] > data[0] ? '#2e7d32' : '#d32f2f';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                
+                data.forEach((value, index) => {
+                    const x = (index / (data.length - 1)) * 95 + 2.5;
+                    const y = 25 - ((value - min) / range) * 20;
+                    if (index === 0) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                });
+                
+                ctx.stroke();
+                this.eGui.appendChild(canvas);
+            }
+        }
+        getGui() {
+            return this.eGui;
+        }
+    }
+    """)
+    
+    # Configure specific columns
+    gb.configure_column("Symbol", width=80, pinned='left')
+    gb.configure_column("Company", width=200, pinned='left')
+    gb.configure_column("Price", width=100, cellRenderer=price_renderer)
+    gb.configure_column("Change", width=100, cellRenderer=change_renderer)
+    gb.configure_column("Change%", width=100, cellRenderer=change_pct_renderer)
+    gb.configure_column("Volume", width=100, cellRenderer=volume_renderer)
+    gb.configure_column("Market Cap (B)", width=120, 
+                       cellRenderer=JsCode("params => '$' + params.value.toFixed(1) + 'B'"))
+    gb.configure_column("52W Low", width=100, 
+                       cellRenderer=JsCode("params => '$' + params.value.toFixed(2)"))
+    gb.configure_column("52W High", width=100, 
+                       cellRenderer=JsCode("params => '$' + params.value.toFixed(2)"))
+    gb.configure_column("P/E Ratio", width=100)
+    gb.configure_column("Dividend Yield%", width=130,
+                       cellRenderer=JsCode("params => params.value > 0 ? params.value.toFixed(2) + '%' : 'N/A'"))
+    gb.configure_column("Sparkline", width=120, cellRenderer=sparkline_renderer)
+    gb.configure_column("Last Updated", width=100)
+    
+    # Configure grid options
+    gb.configure_grid_options(
+        enableRangeSelection=True,
+        enableCharts=True,
+        suppressMenuHide=True,
+        suppressColumnVirtualisation=True
+    )
+    
+    # Configure sidebar
+    gb.configure_side_bar()
+    
+    # Build grid options
+    grid_options = gb.build()
+    
+    # Create the grid
+    response = AgGrid(
+        df,
+        gridOptions=grid_options,
+        height=height,
+        theme=theme,
+        update_mode=GridUpdateMode.SELECTION_CHANGED,
+        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
+        allow_unsafe_jscode=True,
+        enable_enterprise_modules=True
+    )
+    
+    return response
